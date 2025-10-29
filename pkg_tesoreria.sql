@@ -4,6 +4,9 @@ CREATE OR REPLACE PACKAGE pkg_tesoreria IS
         p_rutina VARCHAR2,
         p_msjError VARCHAR2
     );
+    PROCEDURE pr_mostrar_propiedades_exencion_prox_anio(
+        p_porcentajeValor NUMBER
+    );
     FUNCTION fn_valorizacion_propiedad(
         p_nroRol PROPIEDAD.NROROL%TYPE
     ) RETURN NUMBER;
@@ -35,6 +38,36 @@ CREATE OR REPLACE PACKAGE BODY pkg_tesoreria IS
             p_rutina,
             p_msjError
         );
+    END;
+    
+    PROCEDURE pr_mostrar_propiedades_exencion_prox_anio(
+        p_porcentajeValor NUMBER
+    ) IS
+        v_nroRol    Propiedad.nroRol%TYPE;
+        v_calle     Propiedad.calle%TYPE;
+        v_numero    Propiedad.numero%TYPE;
+        v_tipo      Propiedad.tipo%TYPE;
+        
+        v_valor         NUMBER;
+        v_valorAjustado NUMBER;
+        
+        CURSOR c_propiedades IS
+            SELECT P.nroRol, P.calle, P.numero, P.tipo
+            FROM Propiedad P
+            WHERE EXTRACT(YEAR FROM P.fecha_ingreso) + 20 = EXTRACT(YEAR FROM SYSDATE) + 1;
+    BEGIN
+        OPEN c_propiedades;
+        LOOP
+            FETCH c_propiedades INTO v_nroRol, v_calle, v_numero, v_tipo;
+            EXIT WHEN c_propiedades%NOTFOUND;
+            v_valor := fn_valorizacion_propiedad(v_nroRol);
+            v_valorAjustado := ROUND(v_valor * p_porcentajeValor, 0);
+            DBMS_OUTPUT.PUT_LINE(
+                '[Dirección: ' || v_calle || ' ' || v_numero
+                || '] [Tipo: ' || v_tipo
+                || '] [Valor: $' || v_valor
+                || '] [Valor ajustado al ' || ROUND(p_porcentajeValor * 100, 0) || '%: $' || v_valorAjustado || ']');
+        END LOOP;
     END;
     
     FUNCTION fn_valorizacion_propiedad(
@@ -84,7 +117,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_tesoreria IS
         v_valorizado NUMBER;
         v_contribucion NUMBER;
     BEGIN
-        v_valorizado := obtener_valorizado_propiedad(p_nrorol);
+        v_valorizado := fn_valorizacion_propiedad(p_nrorol);
         v_contribucion := v_valorizado * 0.16;
         RETURN v_contribucion;
     
